@@ -1,38 +1,59 @@
 import cv2
 
-camera = cv2.VideoCapture(0)
 
-face_cascade = cv2.CascadeClassifier(
-    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+DETECTOR_MODEL = "models/face_detection_yunet_2023mar.onnx"
+RECOGNIZER_MODEL = "models/face_recognition_sface_2021dec.onnx"
+
+detector = cv2.FaceDetectorYN_create(
+    DETECTOR_MODEL,
+    "",
+    (320, 320)
 )
 
-while True:
-    success, frame = camera.read()
+recognizer = cv2.FaceRecognizerSF_create(
+    RECOGNIZER_MODEL,
+    ""
+)
 
-    if not success:
-        break
 
-    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+def get_face_embedding(image_path):
+    image = cv2.imread(image_path)
 
-    faces = face_cascade.detectMultiScale(
-        gray_frame,
-        scaleFactor=1.1,
-        minNeighbors=5
-    )
+    if image is None:
+        raise ValueError(f"Could not load image: {image_path}")
 
-    for x, y, width, height in faces:
-        cv2.rectangle(
-            frame,
-            (x, y),
-            (x + width, y + height),
-            (0, 255, 0),
-            2
-        )
+    height, width = image.shape[:2]
 
-    cv2.imshow("Face Detection", frame)
+    detector.setInputSize((width, height))
 
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        break
+    _, faces = detector.detect(image)
 
-camera.release()
-cv2.destroyAllWindows()
+    if faces is None:
+        raise ValueError(f"No face detected in: {image_path}")
+
+    face = faces[0]
+
+    aligned_face = recognizer.alignCrop(image, face)
+
+    embedding = recognizer.feature(aligned_face)
+
+    return embedding
+
+
+embedding1 = get_face_embedding("images/picture1.jpeg")
+embedding2 = get_face_embedding("images/picture2.jpeg")
+
+distance = recognizer.match(
+    embedding1,
+    embedding2,
+    cv2.FaceRecognizerSF_FR_NORM_L2
+)
+
+print("Euclidean distance:", distance)
+
+THRESHOLD = 1.128
+
+if distance <= THRESHOLD:
+    print("Same person")
+else:
+    print("Different person")
