@@ -4,7 +4,7 @@ import cv2
 DETECTOR_MODEL = "models/face_detection_yunet_2023mar.onnx"
 RECOGNIZER_MODEL = "models/face_recognition_sface_2021dec.onnx"
 
-REFERENCE_IMAGE = "images/picture3.jpeg"
+REFERENCE_IMAGE = "known_faces/Amit/picture1.jpeg"
 
 THRESHOLD = 1.128
 
