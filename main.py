@@ -41,7 +41,7 @@ def get_face_embedding(image_path):
 
 
 embedding1 = get_face_embedding("images/picture1.jpeg")
-embedding2 = get_face_embedding("images/picture2.jpeg")
+embedding2 = get_face_embedding("images/picture3.jpeg")
 
 distance = recognizer.match(
     embedding1,
