@@ -4,6 +4,11 @@ import cv2
 DETECTOR_MODEL = "models/face_detection_yunet_2023mar.onnx"
 RECOGNIZER_MODEL = "models/face_recognition_sface_2021dec.onnx"
 
+REFERENCE_IMAGE = "images/picture3.jpeg"
+
+THRESHOLD = 1.128
+
+
 detector = cv2.FaceDetectorYN_create(
     DETECTOR_MODEL,
     "",
@@ -16,12 +21,7 @@ recognizer = cv2.FaceRecognizerSF_create(
 )
 
 
-def get_face_embedding(image_path):
-    image = cv2.imread(image_path)
-
-    if image is None:
-        raise ValueError(f"Could not load image: {image_path}")
-
+def get_face_embedding(image):
     height, width = image.shape[:2]
 
     detector.setInputSize((width, height))
@@ -29,7 +29,7 @@ def get_face_embedding(image_path):
     _, faces = detector.detect(image)
 
     if faces is None:
-        raise ValueError(f"No face detected in: {image_path}")
+        return None, None
 
     face = faces[0]
 
@@ -37,23 +37,67 @@ def get_face_embedding(image_path):
 
     embedding = recognizer.feature(aligned_face)
 
-    return embedding
+    return embedding, face
 
 
-embedding1 = get_face_embedding("images/picture1.jpeg")
-embedding2 = get_face_embedding("images/picture3.jpeg")
+reference_image = cv2.imread(REFERENCE_IMAGE)
 
-distance = recognizer.match(
-    embedding1,
-    embedding2,
-    cv2.FaceRecognizerSF_FR_NORM_L2
-)
+if reference_image is None:
+    raise ValueError("Could not load reference image")
 
-print("Euclidean distance:", distance)
+reference_embedding, _ = get_face_embedding(reference_image)
 
-THRESHOLD = 1.128
+if reference_embedding is None:
+    raise ValueError("No face detected in reference image")
 
-if distance <= THRESHOLD:
-    print("Same person")
-else:
-    print("Different person")
+
+camera = cv2.VideoCapture(0)
+
+while True:
+    success, frame = camera.read()
+
+    if not success:
+        break
+
+    embedding, face = get_face_embedding(frame)
+
+    if embedding is not None:
+        distance = recognizer.match(
+            reference_embedding,
+            embedding,
+            cv2.FaceRecognizerSF_FR_NORM_L2
+        )
+
+        if distance <= THRESHOLD:
+            result = "Same person"
+        else:
+            result = "Different person"
+
+        x, y, width, height = face[:4].astype(int)
+
+        cv2.rectangle(
+            frame,
+            (x, y),
+            (x + width, y + height),
+            (0, 255, 0),
+            2
+        )
+
+        cv2.putText(
+            frame,
+            f"{result} | Distance: {distance:.2f}",
+            (x, y - 10),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (0, 255, 0),
+            2
+        )
+
+    cv2.imshow("Face Verification", frame)
+
+    if cv2.waitKey(1) & 0xFF == ord("q"):
+        break
+
+
+camera.release()
+cv2.destroyAllWindows()
