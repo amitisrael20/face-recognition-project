@@ -1,6 +1,8 @@
 import os
 import cv2
 
+from database import save_embedding, load_embeddings
+
 
 DETECTOR_MODEL = "models/face_detection_yunet_2023mar.onnx"
 RECOGNIZER_MODEL = "models/face_recognition_sface_2021dec.onnx"
@@ -73,11 +75,46 @@ def load_known_faces():
     return known_faces
 
 
+# Load known faces into memory
 known_faces = load_known_faces()
 
 print(f"Loaded {len(known_faces)} known face embeddings")
 
 
+# Temporary database test:
+# Save one real embedding and load it back
+test_image_path = "known_faces/Amit/picture1.jpeg"
+test_image = cv2.imread(test_image_path)
+
+if test_image is None:
+    raise ValueError(f"Could not load test image: {test_image_path}")
+
+test_embedding = get_face_embedding(test_image)
+
+if test_embedding is None:
+    raise ValueError("No face detected in test image")
+
+embedding_id = save_embedding(
+    person_id=1,
+    image_path=test_image_path,
+    embedding=test_embedding
+)
+
+print(f"Saved embedding with ID: {embedding_id}")
+
+
+stored_embeddings = load_embeddings()
+
+for item in stored_embeddings:
+    print(
+        item["id"],
+        item["name"],
+        item["image_path"],
+        item["embedding"].shape
+    )
+
+
+# Start webcam
 camera = cv2.VideoCapture(0)
 
 while True:

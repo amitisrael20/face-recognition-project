@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: face-recognition-postgres
+
+    environment:
+      POSTGRES_DB: face_recognition
+      POSTGRES_USER: face_user
+      POSTGRES_PASSWORD: face_password
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
