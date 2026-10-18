@@ -1,7 +1,12 @@
 import os
 import cv2
 
-from database import save_embedding, load_embeddings
+from database import (
+    get_or_create_person,
+    save_embedding,
+    load_embeddings,
+    embedding_exists
+)
 
 
 DETECTOR_MODEL = "models/face_detection_yunet_2023mar.onnx"
@@ -43,17 +48,26 @@ def get_face_embedding(image):
     return embedding
 
 
-def load_known_faces():
-    known_faces = []
-
+def import_known_faces_to_db():
     for person_name in os.listdir(KNOWN_FACES_DIR):
-        person_path = os.path.join(KNOWN_FACES_DIR, person_name)
+        person_path = os.path.join(
+            KNOWN_FACES_DIR,
+            person_name
+        )
 
         if not os.path.isdir(person_path):
             continue
 
+        person_id = get_or_create_person(person_name)
+
         for image_name in os.listdir(person_path):
-            image_path = os.path.join(person_path, image_name)
+            image_path = os.path.join(
+                person_path,
+                image_name
+            )
+
+            if embedding_exists(image_path):
+                continue
 
             image = cv2.imread(image_path)
 
@@ -65,57 +79,32 @@ def load_known_faces():
             if embedding is None:
                 continue
 
-            known_faces.append(
-                {
-                    "name": person_name,
-                    "embedding": embedding
-                }
+            save_embedding(
+                person_id=person_id,
+                image_path=image_path,
+                embedding=embedding
             )
 
-    return known_faces
+
+# Import new faces into PostgreSQL
+import_known_faces_to_db()
 
 
-# Load known faces into memory
-known_faces = load_known_faces()
+# Load all known embeddings from PostgreSQL
+known_faces = load_embeddings()
 
-print(f"Loaded {len(known_faces)} known face embeddings")
-
-
-# Temporary database test:
-# Save one real embedding and load it back
-test_image_path = "known_faces/Amit/picture1.jpeg"
-test_image = cv2.imread(test_image_path)
-
-if test_image is None:
-    raise ValueError(f"Could not load test image: {test_image_path}")
-
-test_embedding = get_face_embedding(test_image)
-
-if test_embedding is None:
-    raise ValueError("No face detected in test image")
-
-embedding_id = save_embedding(
-    person_id=1,
-    image_path=test_image_path,
-    embedding=test_embedding
+print(
+    f"Loaded {len(known_faces)} "
+    f"embeddings from PostgreSQL"
 )
-
-print(f"Saved embedding with ID: {embedding_id}")
-
-
-stored_embeddings = load_embeddings()
-
-for item in stored_embeddings:
-    print(
-        item["id"],
-        item["name"],
-        item["image_path"],
-        item["embedding"].shape
-    )
 
 
 # Start webcam
 camera = cv2.VideoCapture(0)
+
+if not camera.isOpened():
+    raise RuntimeError("Could not open webcam")
+
 
 while True:
     success, frame = camera.read()
@@ -124,15 +113,21 @@ while True:
         break
 
     height, width = frame.shape[:2]
+
     detector.setInputSize((width, height))
 
     _, faces = detector.detect(frame)
 
     if faces is not None:
         for face in faces:
-            aligned_face = recognizer.alignCrop(frame, face)
+            aligned_face = recognizer.alignCrop(
+                frame,
+                face
+            )
 
-            current_embedding = recognizer.feature(aligned_face)
+            current_embedding = recognizer.feature(
+                aligned_face
+            )
 
             best_name = "Unknown"
             best_distance = float("inf")
@@ -151,19 +146,27 @@ while True:
             if best_distance > THRESHOLD:
                 best_name = "Unknown"
 
-            x, y, face_width, face_height = face[:4].astype(int)
+            x, y, face_width, face_height = (
+                face[:4].astype(int)
+            )
 
             cv2.rectangle(
                 frame,
                 (x, y),
-                (x + face_width, y + face_height),
+                (
+                    x + face_width,
+                    y + face_height
+                ),
                 (0, 200, 0),
                 2
             )
 
             cv2.putText(
                 frame,
-                f"{best_name} | Distance: {best_distance:.2f}",
+                (
+                    f"{best_name} | "
+                    f"Distance: {best_distance:.2f}"
+                ),
                 (x, y - 10),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.7,
@@ -171,7 +174,10 @@ while True:
                 2
             )
 
-    cv2.imshow("Face Identification", frame)
+    cv2.imshow(
+        "Face Identification",
+        frame
+    )
 
     if cv2.waitKey(1) & 0xFF == ord("q"):
         break

@@ -119,3 +119,49 @@ def load_embeddings():
         )
 
     return embeddings
+
+def get_or_create_person(name):
+    connection = get_connection()
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT id FROM persons WHERE name = %s;",
+            (name,)
+        )
+
+        result = cursor.fetchone()
+
+        if result is not None:
+            person_id = result[0]
+        else:
+            cursor.execute(
+                "INSERT INTO persons (name) VALUES (%s) RETURNING id;",
+                (name,)
+            )
+
+            person_id = cursor.fetchone()[0]
+
+    connection.commit()
+    connection.close()
+
+    return person_id
+
+def embedding_exists(image_path):
+    connection = get_connection()
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT 1
+            FROM face_embeddings
+            WHERE image_path = %s
+            LIMIT 1;
+            """,
+            (image_path,)
+        )
+
+        result = cursor.fetchone()
+
+    connection.close()
+
+    return result is not None
