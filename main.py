@@ -85,7 +85,44 @@ def import_known_faces_to_db():
                 embedding=embedding
             )
 
+def register_person(name, image_paths):
+    person_id = get_or_create_person(name)
 
+    saved_embeddings = 0
+
+    for image_path in image_paths:
+        if embedding_exists(image_path):
+            continue
+
+        image = cv2.imread(image_path)
+
+        if image is None:
+            continue
+
+        embedding = get_face_embedding(image)
+
+        if embedding is None:
+            continue
+
+        save_embedding(
+            person_id=person_id,
+            image_path=image_path,
+            embedding=embedding
+        )
+
+        saved_embeddings += 1
+
+    return saved_embeddings
+
+saved = register_person(
+    "Amit",
+    [
+        "known_faces/Amit/picture1.jpeg",
+        "known_faces/Amit/picture2.jpeg"
+    ]
+)
+
+print(f"Saved {saved} new embeddings")
 # Import new faces into PostgreSQL
 import_known_faces_to_db()
 
